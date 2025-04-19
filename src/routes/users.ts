@@ -3,16 +3,16 @@ import {
   getUsers,
   getUserById,
   createUser,
-  updateProfile,
-  updateAvatar,
+  updateUserProfile,
+  updateUserAvatar,
 } from '../controllers/users';
 
 const router = Router();
 
 router.get('/', getUsers);
-router.get('/:userId', getUserById);
 router.post('/', createUser);
-router.patch('/me', updateProfile);
-router.patch('/me/avatar', updateAvatar);
+router.patch('/me', updateUserProfile);
+router.patch('/me/avatar', updateUserAvatar);
+router.get('/:userId', getUserById);
 
 export default router;

@@ -1,49 +1,36 @@
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-import rateLimit from 'express-rate-limit';
-
 import userRoutes from './routes/users';
 import cardRoutes from './routes/cards';
 
-dotenv.config();
-
-const { PORT = 3000, DB_ADDRESS = 'mongodb://localhost:27017/mestodb' } =
-  process.env;
-
 const app = express();
+const PORT = 3000;
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Слишком много запросов с этого IP, попробуйте позже',
-});
-app.use(limiter);
+app.use(express.json());
 
-app.use((req: Request, res: Response, next: NextFunction) => {
+mongoose.connect('mongodb://localhost:27017/mestodb')
+  .then(() => {
+    console.log('Успешное подключение к MongoDB');
+  })
+  .catch((err) => {
+    console.error('Ошибка подключения к MongoDB:', err);
+  });
+
+app.use((req: Request, _res: Response, next: NextFunction) => {
   req.user = {
-    _id: '5d8b8592978f8bd833ca8133',
+    _id: '68036a6de7829817f540128a',
   };
   next();
 });
 
-app.use(express.json());
-
 app.use('/users', userRoutes);
 app.use('/cards', cardRoutes);
 
-app.use('*', (req: Request, res: Response) => {
-  res.status(404).json({ message: 'Запрашиваемый ресурс не найден' });
+app.use((err: Error, _req: Request, res: Response) => {
+  console.error(err.stack);
+  res.status(500).send({ message: 'На сервере произошла ошибка' });
 });
 
-mongoose
-  .connect(DB_ADDRESS)
-  .then(() => {
-    console.log('Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-  });
+app.listen(PORT, () => {
+  console.log(`Сервер работает на http://localhost:${PORT}`);
+});

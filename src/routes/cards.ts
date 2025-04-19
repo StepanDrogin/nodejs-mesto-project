@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
-  createCard,
   getCards,
+  createCard,
   deleteCard,
   likeCard,
   dislikeCard,

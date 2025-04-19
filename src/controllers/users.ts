@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 import User from '../models/user';
 
-export const getUsers = async (req: Request, res: Response) => {
+export const getUsers = async (_req: Request, res: Response) => {
   try {
     const users = await User.find({});
-    res.status(200).json(users);
+    return res.send(users);
   } catch {
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+    return res.status(500).send({ message: 'На сервере произошла ошибка' });
   }
 };
 
@@ -14,74 +14,68 @@ export const getUserById = async (req: Request, res: Response) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {
-      return res
-        .status(404)
-        .json({ message: 'Запрашиваемый пользователь не найден' });
+      return res.status(404).send({ message: 'Пользователь не найден' });
     }
-    res.status(200).json(user);
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ message: 'Некорректный ID пользователя' });
-    }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+    return res.send(user);
+  } catch {
+    return res.status(400).send({ message: 'Некорректный id пользователя' });
   }
 };
 
 export const createUser = async (req: Request, res: Response) => {
   try {
     const { name, about, avatar } = req.body;
-    const newUser = await User.create({ name, about, avatar });
-    res.status(201).json(newUser);
-  } catch (err: any) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({
-        message: 'Переданы некорректные данные при создании пользователя',
-      });
-    }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+    const user = await User.create({ name, about, avatar });
+    return res.status(201).send(user);
+  } catch {
+    return res.status(400).send({ message: 'Ошибка при создании пользователя' });
   }
 };
 
-export const updateProfile = async (req: Request, res: Response) => {
+export const updateUserProfile = async (req: Request, res: Response) => {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).send({ message: 'Не авторизован' });
+    }
+
     const { name, about } = req.body;
+
     const user = await User.findByIdAndUpdate(
-      req.user?._id,
+      req.user._id,
       { name, about },
       { new: true, runValidators: true },
     );
+
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).send({ message: 'Пользователь не найден' });
     }
-    res.status(200).json(user);
-  } catch (err: any) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({
-        message: 'Переданы некорректные данные при обновлении профиля',
-      });
-    }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+
+    return res.send(user);
+  } catch {
+    return res.status(400).send({ message: 'Ошибка при обновлении профиля' });
   }
 };
 
-export const updateAvatar = async (req: Request, res: Response) => {
+export const updateUserAvatar = async (req: Request, res: Response) => {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).send({ message: 'Не авторизован' });
+    }
+
     const { avatar } = req.body;
+
     const user = await User.findByIdAndUpdate(
-      req.user?._id,
+      req.user._id,
       { avatar },
       { new: true, runValidators: true },
     );
+
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).send({ message: 'Пользователь не найден' });
     }
-    res.status(200).json(user);
-  } catch (err: any) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({
-        message: 'Переданы некорректные данные при обновлении аватара',
-      });
-    }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+
+    return res.send(user);
+  } catch {
+    return res.status(400).send({ message: 'Ошибка при обновлении аватара' });
   }
 };

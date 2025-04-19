@@ -1,75 +1,82 @@
 import { Request, Response } from 'express';
 import Card from '../models/card';
 
-export const getCards = async (req: Request, res: Response) => {
+export const getCards = async (_req: Request, res: Response) => {
   try {
     const cards = await Card.find({});
-    res.status(200).json(cards);
+    return res.send(cards);
   } catch {
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+    return res.status(500).send({ message: 'На сервере произошла ошибка' });
   }
 };
 
 export const createCard = async (req: Request, res: Response) => {
   try {
-    const { name, link } = req.body;
-    const owner = req.user?._id;
-
-    const card = await Card.create({ name, link, owner });
-    res.status(201).json(card);
-  } catch (err: any) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({
-        message: 'Переданы некорректные данные при создании карточки',
-      });
+    if (!req.user || !req.user._id) {
+      return res.status(401).send({ message: 'Не авторизован' });
     }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+
+    const { name, link } = req.body;
+    const owner = req.user._id;
+    const card = await Card.create({ name, link, owner });
+    return res.status(201).send(card);
+  } catch {
+    return res.status(400).send({ message: 'Ошибка при создании карточки' });
   }
 };
 
 export const deleteCard = async (req: Request, res: Response) => {
   try {
     const card = await Card.findByIdAndDelete(req.params.cardId);
-    if (!card) return res.status(404).json({ message: 'Карточка не найдена' });
-    res.status(200).json({ message: 'Карточка удалена' });
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ message: 'Некорректный ID карточки' });
+    if (!card) {
+      return res.status(404).send({ message: 'Карточка не найдена' });
     }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+    return res.send(card);
+  } catch {
+    return res.status(400).send({ message: 'Некорректный id карточки' });
   }
 };
 
 export const likeCard = async (req: Request, res: Response) => {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).send({ message: 'Не авторизован' });
+    }
+
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
-      { $addToSet: { likes: req.user?._id } },
+      { $addToSet: { likes: req.user._id } },
       { new: true },
     );
-    if (!card) return res.status(404).json({ message: 'Карточка не найдена' });
-    res.status(200).json(card);
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ message: 'Некорректный ID карточки' });
+
+    if (!card) {
+      return res.status(404).send({ message: 'Карточка не найдена' });
     }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+
+    return res.send(card);
+  } catch {
+    return res.status(400).send({ message: 'Некорректный id карточки' });
   }
 };
 
 export const dislikeCard = async (req: Request, res: Response) => {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).send({ message: 'Не авторизован' });
+    }
+
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
-      { $pull: { likes: req.user?._id } },
+      { $pull: { likes: req.user._id } },
       { new: true },
     );
-    if (!card) return res.status(404).json({ message: 'Карточка не найдена' });
-    res.status(200).json(card);
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ message: 'Некорректный ID карточки' });
+
+    if (!card) {
+      return res.status(404).send({ message: 'Карточка не найдена' });
     }
-    res.status(500).json({ message: 'На сервере произошла ошибка' });
+
+    return res.send(card);
+  } catch {
+    return res.status(400).send({ message: 'Некорректный id карточки' });
   }
 };
