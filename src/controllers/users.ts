@@ -1,98 +1,184 @@
-import { Request, Response } from 'express';
-import { Error as MongooseError } from 'mongoose';
+import { Request, Response, NextFunction } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import User from '../models/user';
+import BadRequestError from '../errors/BadRequestError';
+import ConflictError from '../errors/ConflictError';
+import UnauthorizedError from '../errors/UnauthorizedError';
 
-export const getUsers = async (_req: Request, res: Response) => {
+const { JWT_SECRET = 'default-secret' } = process.env;
+
+export const getUsers = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const users = await User.find({});
-    return res.send(users);
-  } catch {
-    return res.status(500).send({ message: 'На сервере произошла ошибка' });
+    return res.status(200).json(users);
+  } catch (err) {
+    return next(err);
   }
 };
 
-export const getUserById = async (req: Request, res: Response) => {
+export const getUserById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const user = await User.findById(req.params.userId);
-
     if (!user) {
-      return res.status(404).send({ message: 'Пользователь не найден' });
+      return next(new BadRequestError('Пользователь не найден'));
     }
-
-    return res.send(user);
-  } catch (err: unknown) {
-    if (err instanceof MongooseError.CastError) {
-      return res.status(400).send({ message: 'Некорректный id пользователя' });
+    return res.status(200).json(user);
+  } catch (err: any) {
+    if (err.name === 'CastError') {
+      return next(new BadRequestError('Некорректный ID пользователя'));
     }
-
-    return res.status(500).send({ message: 'На сервере произошла ошибка' });
+    return next(err);
   }
 };
 
-export const createUser = async (req: Request, res: Response) => {
+export const getCurrentUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const { name, about, avatar } = req.body;
-    const user = await User.create({ name, about, avatar });
-    return res.status(201).send(user);
-  } catch (err: unknown) {
-    if (err instanceof MongooseError.ValidationError) {
-      return res.status(400).send({ message: 'Ошибка валидации данных пользователя' });
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+      return next(new BadRequestError('Пользователь не найден'));
     }
-
-    return res.status(500).send({ message: 'На сервере произошла ошибка' });
+    return res.status(200).json(user);
+  } catch (err) {
+    return next(err);
   }
 };
 
-export const updateUserProfile = async (req: Request, res: Response) => {
+export const createUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).send({ message: 'Не авторизован' });
+    const {
+      name,
+      about,
+      avatar,
+      email,
+      password,
+    }: {
+      name?: string
+      about?: string
+      avatar?: string
+      email: string
+      password: string
+    } = req.body;
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const newUser = await User.create({
+      name,
+      about,
+      avatar,
+      email,
+      password: hash,
+    });
+
+    const { password: _, ...userWithoutPassword } = newUser.toObject();
+
+    return res.status(201).json(userWithoutPassword);
+  } catch (err: any) {
+    if (err.code === 11000) {
+      return next(
+        new ConflictError('Пользователь с таким email уже существует'),
+      );
+    }
+    if (err.name === 'ValidationError') {
+      return next(
+        new BadRequestError(
+          'Переданы некорректные данные при создании пользователя',
+        ),
+      );
+    }
+    return next(err);
+  }
+};
+
+export const login = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      return next(new UnauthorizedError('Неправильные почта или пароль'));
     }
 
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return next(new UnauthorizedError('Неправильные почта или пароль'));
+    }
+
+    const token = jwt.sign({ _id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+    return res.send({ token });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const updateProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
     const { name, about } = req.body;
     const user = await User.findByIdAndUpdate(
-      req.user._id,
+      req.user?._id,
       { name, about },
       { new: true, runValidators: true },
     );
-
     if (!user) {
-      return res.status(404).send({ message: 'Пользователь не найден' });
+      return next(new BadRequestError('Пользователь не найден'));
     }
-
-    return res.send(user);
-  } catch (err: unknown) {
-    if (err instanceof MongooseError.ValidationError) {
-      return res.status(400).send({ message: 'Ошибка валидации данных профиля' });
+    return res.status(200).json(user);
+  } catch (err: any) {
+    if (err.name === 'ValidationError') {
+      return next(
+        new BadRequestError('Некорректные данные при обновлении профиля'),
+      );
     }
-
-    return res.status(500).send({ message: 'На сервере произошла ошибка' });
+    return next(err);
   }
 };
 
-export const updateUserAvatar = async (req: Request, res: Response) => {
+export const updateAvatar = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).send({ message: 'Не авторизован' });
-    }
-
     const { avatar } = req.body;
     const user = await User.findByIdAndUpdate(
-      req.user._id,
+      req.user?._id,
       { avatar },
       { new: true, runValidators: true },
     );
-
     if (!user) {
-      return res.status(404).send({ message: 'Пользователь не найден' });
+      return next(new BadRequestError('Пользователь не найден'));
     }
-
-    return res.send(user);
-  } catch (err: unknown) {
-    if (err instanceof MongooseError.ValidationError) {
-      return res.status(400).send({ message: 'Ошибка валидации аватара' });
+    return res.status(200).json(user);
+  } catch (err: any) {
+    if (err.name === 'ValidationError') {
+      return next(
+        new BadRequestError('Некорректные данные при обновлении аватара'),
+      );
     }
-
-    return res.status(500).send({ message: 'На сервере произошла ошибка' });
+    return next(err);
   }
 };

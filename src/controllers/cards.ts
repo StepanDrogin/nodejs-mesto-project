@@ -1,82 +1,117 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import Card from '../models/card';
+import BadRequestError from '../errors/BadRequestError';
+import NotFoundError from '../errors/NotFoundError';
+import ForbiddenError from '../errors/ForbiddenError';
 
-export const getCards = async (_req: Request, res: Response) => {
+export const getCards = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const cards = await Card.find({});
-    return res.send(cards);
-  } catch {
-    return res.status(500).send({ message: 'На сервере произошла ошибка' });
+    return res.status(200).json(cards);
+  } catch (err) {
+    return next(err);
   }
 };
 
-export const createCard = async (req: Request, res: Response) => {
+export const createCard = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).send({ message: 'Не авторизован' });
-    }
-
     const { name, link } = req.body;
-    const owner = req.user._id;
+    const owner = req.user?._id;
+
     const card = await Card.create({ name, link, owner });
-    return res.status(201).send(card);
-  } catch {
-    return res.status(400).send({ message: 'Ошибка при создании карточки' });
+    return res.status(201).json(card);
+  } catch (err: any) {
+    if (err.name === 'ValidationError') {
+      return next(
+        new BadRequestError(
+          'Переданы некорректные данные при создании карточки',
+        ),
+      );
+    }
+    return next(err);
   }
 };
 
-export const deleteCard = async (req: Request, res: Response) => {
+export const deleteCard = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const card = await Card.findByIdAndDelete(req.params.cardId);
+    const card = await Card.findById(req.params.cardId);
+
     if (!card) {
-      return res.status(404).send({ message: 'Карточка не найдена' });
+      return next(new NotFoundError('Карточка не найдена'));
     }
-    return res.send(card);
-  } catch {
-    return res.status(400).send({ message: 'Некорректный id карточки' });
+
+    if (card.owner.toString() !== req.user?._id) {
+      return next(new ForbiddenError('Нельзя удалять чужую карточку'));
+    }
+
+    await card.deleteOne();
+    return res.status(200).json({ message: 'Карточка удалена' });
+  } catch (err: any) {
+    if (err.name === 'CastError') {
+      return next(new BadRequestError('Некорректный ID карточки'));
+    }
+    return next(err);
   }
 };
 
-export const likeCard = async (req: Request, res: Response) => {
+export const likeCard = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).send({ message: 'Не авторизован' });
-    }
-
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
-      { $addToSet: { likes: req.user._id } },
+      { $addToSet: { likes: req.user?._id } },
       { new: true },
     );
 
     if (!card) {
-      return res.status(404).send({ message: 'Карточка не найдена' });
+      return next(new NotFoundError('Карточка не найдена'));
     }
 
-    return res.send(card);
-  } catch {
-    return res.status(400).send({ message: 'Некорректный id карточки' });
+    return res.status(200).json(card);
+  } catch (err: any) {
+    if (err.name === 'CastError') {
+      return next(new BadRequestError('Некорректный ID карточки'));
+    }
+    return next(err);
   }
 };
 
-export const dislikeCard = async (req: Request, res: Response) => {
+export const dislikeCard = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).send({ message: 'Не авторизован' });
-    }
-
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
-      { $pull: { likes: req.user._id } },
+      { $pull: { likes: req.user?._id } },
       { new: true },
     );
 
     if (!card) {
-      return res.status(404).send({ message: 'Карточка не найдена' });
+      return next(new NotFoundError('Карточка не найдена'));
     }
 
-    return res.send(card);
-  } catch {
-    return res.status(400).send({ message: 'Некорректный id карточки' });
+    return res.status(200).json(card);
+  } catch (err: any) {
+    if (err.name === 'CastError') {
+      return next(new BadRequestError('Некорректный ID карточки'));
+    }
+    return next(err);
   }
 };

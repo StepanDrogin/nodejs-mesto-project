@@ -1,48 +1,58 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import { errors } from 'celebrate';
+
+import { createUser, login } from './controllers/users';
 import userRoutes from './routes/users';
 import cardRoutes from './routes/cards';
+import auth from './middlewares/auth';
+import { requestLogger, errorLogger } from './middlewares/logger';
+import errorHandler from './middlewares/errorHandler';
+import { validateSignin, validateSignup } from './middlewares/validators';
+
+dotenv.config();
+
+const { PORT = 3000, DB_ADDRESS = 'mongodb://localhost:27017/mestodb' } = process.env;
 
 const app = express();
-const PORT = 3000;
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: { message: 'Слишком много запросов с вашего IP, попробуйте позже' },
+  message: 'Слишком много запросов с этого IP, попробуйте позже',
 });
-
 app.use(limiter);
+
 app.use(express.json());
 
-mongoose.connect('mongodb://localhost:27017/mestodb')
-  .then(() => {
-    console.log('Успешное подключение к MongoDB');
-  })
-  .catch((err) => {
-    console.error('Ошибка подключения к MongoDB:', err);
-  });
+app.use(requestLogger);
 
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  req.user = {
-    _id: '68036a6de7829817f540128a',
-  };
-  next();
-});
+app.post('/signup', validateSignup, createUser);
+app.post('/signin', validateSignin, login);
+
+app.use(auth);
 
 app.use('/users', userRoutes);
 app.use('/cards', cardRoutes);
 
-app.use('*', (_req: Request, res: Response) => {
-  res.status(404).send({ message: 'Запрашиваемый ресурс не найден' });
+app.use('*', (req: Request, res: Response) => {
+  res.status(404).json({ message: 'Запрашиваемый ресурс не найден' });
 });
 
-app.use((err: Error, _req: Request, res: Response) => {
-  console.error(err.stack);
-  res.status(500).send({ message: 'На сервере произошла ошибка' });
-});
+app.use(errorLogger);
+app.use(errors());
+app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Сервер работает на http://localhost:${PORT}`);
-});
+mongoose
+  .connect(DB_ADDRESS)
+  .then(() => {
+    console.log('Connected to MongoDB');
+    app.listen(PORT, () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+  });
