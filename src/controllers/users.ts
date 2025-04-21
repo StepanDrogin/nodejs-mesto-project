@@ -88,10 +88,10 @@ export const createUser = async (
 
     const { password: _, ...userWithoutPassword } = newUser.toObject();
 
-    return res.status(201).json(userWithoutPassword);
+    res.status(201).json(userWithoutPassword);
   } catch (err: any) {
     if (err.code === 11000) {
-      return next(
+      next(
         new ConflictError('Пользователь с таким email уже существует'),
       );
     }
@@ -110,24 +110,20 @@ export const login = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   const { email, password } = req.body;
 
   try {
     const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return next(new UnauthorizedError('Неправильные почта или пароль'));
-    }
-
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) {
-      return next(new UnauthorizedError('Неправильные почта или пароль'));
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      next(new UnauthorizedError('Неправильные почта или пароль'));
+      return;
     }
 
     const token = jwt.sign({ _id: user._id }, JWT_SECRET, { expiresIn: '7d' });
-    return res.send({ token });
+    res.send({ token });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
