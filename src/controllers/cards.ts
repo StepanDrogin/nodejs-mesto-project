@@ -8,12 +8,12 @@ export const getCards = async (
   _req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const cards = await Card.find({});
-    return res.status(200).json(cards);
+    res.status(200).json(cards);
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
@@ -21,22 +21,21 @@ export const createCard = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const { name, link } = req.body;
     const owner = req.user?._id;
 
     const card = await Card.create({ name, link, owner });
-    return res.status(201).json(card);
+    res.status(201).json(card);
   } catch (err: any) {
     if (err.name === 'ValidationError') {
-      return next(
-        new BadRequestError(
-          'Переданы некорректные данные при создании карточки',
-        ),
+      next(
+        new BadRequestError('Переданы некорректные данные при создании карточки'),
       );
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };
 
@@ -44,25 +43,28 @@ export const deleteCard = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const card = await Card.findById(req.params.cardId);
 
     if (!card) {
-      return next(new NotFoundError('Карточка не найдена'));
+      next(new NotFoundError('Карточка не найдена'));
+      return;
     }
 
     if (card.owner.toString() !== req.user?._id) {
-      return next(new ForbiddenError('Нельзя удалять чужую карточку'));
+      next(new ForbiddenError('Нельзя удалять чужую карточку'));
+      return;
     }
 
     await card.deleteOne();
-    return res.status(200).json({ message: 'Карточка удалена' });
+    res.status(200).json({ message: 'Карточка удалена' });
   } catch (err: any) {
     if (err.name === 'CastError') {
-      return next(new BadRequestError('Некорректный ID карточки'));
+      next(new BadRequestError('Некорректный ID карточки'));
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };
 
@@ -70,7 +72,7 @@ export const likeCard = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
@@ -79,15 +81,17 @@ export const likeCard = async (
     );
 
     if (!card) {
-      return next(new NotFoundError('Карточка не найдена'));
+      next(new NotFoundError('Карточка не найдена'));
+      return;
     }
 
-    return res.status(200).json(card);
+    res.status(200).json(card);
   } catch (err: any) {
     if (err.name === 'CastError') {
-      return next(new BadRequestError('Некорректный ID карточки'));
+      next(new BadRequestError('Некорректный ID карточки'));
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };
 
@@ -95,7 +99,7 @@ export const dislikeCard = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
@@ -104,14 +108,16 @@ export const dislikeCard = async (
     );
 
     if (!card) {
-      return next(new NotFoundError('Карточка не найдена'));
+      next(new NotFoundError('Карточка не найдена'));
+      return;
     }
 
-    return res.status(200).json(card);
+    res.status(200).json(card);
   } catch (err: any) {
     if (err.name === 'CastError') {
-      return next(new BadRequestError('Некорректный ID карточки'));
+      next(new BadRequestError('Некорректный ID карточки'));
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };

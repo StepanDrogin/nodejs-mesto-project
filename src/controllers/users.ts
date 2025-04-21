@@ -12,12 +12,12 @@ export const getUsers = async (
   _req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const users = await User.find({});
-    return res.status(200).json(users);
+    res.status(200).json(users);
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
@@ -25,18 +25,20 @@ export const getUserById = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {
-      return next(new BadRequestError('Пользователь не найден'));
+      next(new BadRequestError('Пользователь не найден'));
+      return;
     }
-    return res.status(200).json(user);
+    res.status(200).json(user);
   } catch (err: any) {
     if (err.name === 'CastError') {
-      return next(new BadRequestError('Некорректный ID пользователя'));
+      next(new BadRequestError('Некорректный ID пользователя'));
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };
 
@@ -44,15 +46,16 @@ export const getCurrentUser = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const user = await User.findById(req.user?._id);
     if (!user) {
-      return next(new BadRequestError('Пользователь не найден'));
+      next(new BadRequestError('Пользователь не найден'));
+      return;
     }
-    return res.status(200).json(user);
+    res.status(200).json(user);
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
@@ -60,7 +63,7 @@ export const createUser = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const {
       name,
@@ -91,18 +94,12 @@ export const createUser = async (
     res.status(201).json(userWithoutPassword);
   } catch (err: any) {
     if (err.code === 11000) {
-      next(
-        new ConflictError('Пользователь с таким email уже существует'),
-      );
+      next(new ConflictError('Пользователь с таким email уже существует'));
+    } else if (err.name === 'ValidationError') {
+      next(new BadRequestError('Переданы некорректные данные при создании пользователя'));
+    } else {
+      next(err);
     }
-    if (err.name === 'ValidationError') {
-      return next(
-        new BadRequestError(
-          'Переданы некорректные данные при создании пользователя',
-        ),
-      );
-    }
-    return next(err);
   }
 };
 
@@ -131,7 +128,7 @@ export const updateProfile = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const { name, about } = req.body;
     const user = await User.findByIdAndUpdate(
@@ -139,17 +136,19 @@ export const updateProfile = async (
       { name, about },
       { new: true, runValidators: true },
     );
+
     if (!user) {
-      return next(new BadRequestError('Пользователь не найден'));
+      next(new BadRequestError('Пользователь не найден'));
+      return;
     }
-    return res.status(200).json(user);
+
+    res.status(200).json(user);
   } catch (err: any) {
     if (err.name === 'ValidationError') {
-      return next(
-        new BadRequestError('Некорректные данные при обновлении профиля'),
-      );
+      next(new BadRequestError('Некорректные данные при обновлении профиля'));
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };
 
@@ -157,24 +156,27 @@ export const updateAvatar = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const { avatar } = req.body;
+
     const user = await User.findByIdAndUpdate(
       req.user?._id,
       { avatar },
       { new: true, runValidators: true },
     );
+
     if (!user) {
-      return next(new BadRequestError('Пользователь не найден'));
+      next(new BadRequestError('Пользователь не найден'));
+      return;
     }
-    return res.status(200).json(user);
+
+    res.status(200).json(user);
   } catch (err: any) {
     if (err.name === 'ValidationError') {
-      return next(
-        new BadRequestError('Некорректные данные при обновлении аватара'),
-      );
+      next(new BadRequestError('Некорректные данные при обновлении аватара'));
+    } else {
+      next(err);
     }
-    return next(err);
   }
 };

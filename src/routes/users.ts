@@ -1,4 +1,5 @@
 import { Router } from 'express';
+
 import {
   getUsers,
   getUserById,
@@ -6,6 +7,7 @@ import {
   updateAvatar,
   getCurrentUser,
 } from '../controllers/users';
+
 import {
   validateUserId,
   validateProfileUpdate,
