@@ -1,27 +1,28 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt, { JwtPayload } from 'jsonwebtoken';
-import UnauthorizedError from '../errors/UnauthorizedError';
+import { NextFunction, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import HttpError from '../errors/http-error';
+import { RequestWithUser } from '../types/index';
 
-const { JWT_SECRET = 'default-secret' } = process.env;
+const auth = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.cookies.jwt;
 
-interface CustomJwtPayload extends JwtPayload {
-  _id: string;
-}
-
-export default (req: Request, res: Response, next: NextFunction) => {
-  const { authorization } = req.headers;
-
-  if (!authorization || !authorization.startsWith('Bearer ')) {
-    return next(new UnauthorizedError('Необходима авторизация'));
+  if (!token) {
+    next(HttpError.unauthorized({ message: 'Токен не найден, необходима авторизация' }));
+    return;
   }
 
-  const token = authorization.replace('Bearer ', '');
+  let payload;
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as CustomJwtPayload;
-    req.user = payload;
-    return next();
+    payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-key');
   } catch (err) {
-    return next(new UnauthorizedError('Неверный токен'));
+    next(HttpError.unauthorized({ message: 'Неверный токен, необходима авторизация' }));
+    return;
   }
+
+  (req as RequestWithUser).user = payload as { _id: string };
+
+  next();
 };
+
+export default auth;

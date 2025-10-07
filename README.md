@@ -1,5 +1,3 @@
-https://github.com/StepanDrogin/nodejs-mesto-project
-
 # Бэкенд Mesto. Каркас API Mesto
 
 ## Используемые технологии и решения

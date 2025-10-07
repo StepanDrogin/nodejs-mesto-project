@@ -1,51 +1,76 @@
 import { celebrate, Joi, Segments } from 'celebrate';
-import urlRegex from '../utils/constants';
 
-export const validateSignup = celebrate({
+const validateSignUpUser = celebrate({
   [Segments.BODY]: Joi.object().keys({
-    email: Joi.string().required().email(),
-    password: Joi.string().required().min(8),
     name: Joi.string().min(2).max(30),
     about: Joi.string().min(2).max(200),
-    avatar: Joi.string().pattern(urlRegex),
-  }),
-});
-
-export const validateSignin = celebrate({
-  [Segments.BODY]: Joi.object().keys({
-    email: Joi.string().required().email(),
+    avatar: Joi.string().uri(),
+    email: Joi.string().email().required(),
     password: Joi.string().required(),
   }),
 });
 
-export const validateUserId = celebrate({
+const validateSignInUser = celebrate({
+  [Segments.BODY]: Joi.object().keys({
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
+  }),
+});
+
+const validateUserId = celebrate({
   [Segments.PARAMS]: Joi.object().keys({
     userId: Joi.string().hex().length(24).required(),
   }),
 });
 
-export const validateCardCreate = celebrate({
-  [Segments.BODY]: Joi.object().keys({
-    name: Joi.string().required().min(2).max(30),
-    link: Joi.string().required().pattern(urlRegex),
-  }),
-});
-
-export const validateCardId = celebrate({
-  [Segments.PARAMS]: Joi.object().keys({
-    cardId: Joi.string().hex().length(24).required(),
-  }),
-});
-
-export const validateProfileUpdate = celebrate({
+const validateUpdateUser = celebrate({
   [Segments.BODY]: Joi.object().keys({
     name: Joi.string().min(2).max(30).required(),
     about: Joi.string().min(2).max(200).required(),
   }),
 });
 
-export const validateAvatarUpdate = celebrate({
+const validateUpdateUserAvatar = celebrate({
   [Segments.BODY]: Joi.object().keys({
-    avatar: Joi.string().required().pattern(urlRegex),
+    avatar: Joi.string().uri().required().messages({
+      'string.uri': 'Некорректный URL аватара',
+      'any.required': 'Не передан URL аватара',
+    }),
   }),
 });
+
+const validateCreateCard = celebrate({
+  [Segments.BODY]: Joi.object().keys({
+    name: Joi.string().min(2).max(30).required()
+      .messages({
+        'string.min': 'Название карточки должно быть не короче 2 символов',
+        'string.max': 'Название карточки должно быть не длиннее 30 символов',
+        'any.required': 'Название карточки обязательно',
+      }),
+    link: Joi.string().uri().required().messages({
+      'string.uri': 'Некорректный URL изображения карточки',
+      'any.required': 'Ссылка на изображение обязательна',
+    }),
+  }),
+});
+
+const validateCardId = celebrate({
+  [Segments.PARAMS]: Joi.object().keys({
+    cardId: Joi.string().hex().length(24).required()
+      .messages({
+        'string.hex': '_id карточки должен быть в hex-формате',
+        'string.length': '_id карточки должен содержать 24 символа',
+        'any.required': '_id карточки обязателен',
+      }),
+  }),
+});
+
+export {
+  validateSignUpUser,
+  validateSignInUser,
+  validateUserId,
+  validateUpdateUser,
+  validateUpdateUserAvatar,
+  validateCreateCard,
+  validateCardId,
+};

@@ -1,58 +1,37 @@
-import express, { Request, Response } from 'express';
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-import rateLimit from 'express-rate-limit';
+import express from 'express';
 import { errors } from 'celebrate';
-
+import mongoose from 'mongoose';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import mainRouter from './routes/index';
+import errorHandler from './errors/error-handler';
 import { createUser, login } from './controllers/users';
-import userRoutes from './routes/users';
-import cardRoutes from './routes/cards';
 import auth from './middlewares/auth';
-import { requestLogger, errorLogger } from './middlewares/logger';
-import errorHandler from './middlewares/errorHandler';
-import { validateSignin, validateSignup } from './middlewares/validators';
+import requestLogger from './middlewares/request-logger';
+import errorLogger from './middlewares/error-logger';
+import { validateSignInUser, validateSignUpUser } from './middlewares/validators';
 
-dotenv.config();
-
-const { PORT = 3000, DB_ADDRESS = 'mongodb://localhost:27017/mestodb' } = process.env;
-
+const { PORT = 3000 } = process.env;
 const app = express();
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Слишком много запросов с этого IP, попробуйте позже',
-});
-app.use(limiter);
-
 app.use(express.json());
-
+app.use(cookieParser());
+app.use(helmet());
 app.use(requestLogger);
 
-app.post('/signup', validateSignup, createUser);
-app.post('/signin', validateSignin, login);
+app.post('/signup', validateSignUpUser, createUser);
+app.post('/signin', validateSignInUser, login);
 
 app.use(auth);
-
-app.use('/users', userRoutes);
-app.use('/cards', cardRoutes);
-
-app.use('*', (req: Request, res: Response) => {
-  res.status(404).json({ message: 'Запрашиваемый ресурс не найден' });
-});
+app.use(mainRouter);
 
 app.use(errorLogger);
 app.use(errors());
 app.use(errorHandler);
 
-mongoose
-  .connect(DB_ADDRESS)
+mongoose.connect('mongodb://localhost:27017/mestodb')
   .then(() => {
-    console.log('Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`Server running at http://localhost:${PORT}`);
-    });
+    console.log('MongoDB connected');
+    app.listen(+PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
   })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-  });
+  .catch(err => console.error('MongoDB connection error:', err));

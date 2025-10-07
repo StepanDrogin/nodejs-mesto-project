@@ -1,123 +1,106 @@
 import { Request, Response, NextFunction } from 'express';
 import Card from '../models/card';
-import BadRequestError from '../errors/BadRequestError';
-import NotFoundError from '../errors/NotFoundError';
-import ForbiddenError from '../errors/ForbiddenError';
+import StatusCodes from '../constants/status-codes';
+import HttpError from '../errors/http-error';
+import { RequestWithUser } from '../types/index';
 
-export const getCards = async (
-  _req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
+const getCards = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const cards = await Card.find({});
-    res.status(200).json(cards);
+
+    if (cards.length === 0) {
+      next(HttpError.notFound({ message: 'Карточки не найдены' }));
+    } else {
+      res.status(StatusCodes.OK).send(cards);
+    }
   } catch (err) {
     next(err);
   }
 };
 
-export const createCard = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { name, link } = req.body;
-    const owner = req.user?._id;
+const createCard = async (req: Request, res: Response, next: NextFunction) => {
+  const {
+    name,
+    link,
+  } = req.body;
+  const owner = (req as RequestWithUser).user._id;
 
-    const card = await Card.create({ name, link, owner });
-    res.status(201).json(card);
-  } catch (err: any) {
-    if (err.name === 'ValidationError') {
-      next(
-        new BadRequestError('Переданы некорректные данные при создании карточки'),
-      );
+  try {
+    const card = await Card.create({
+      name,
+      link,
+      owner,
+    });
+
+    res.status(StatusCodes.CREATED).send(card);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteCard = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const card = await Card.findById(req.params.cardId).orFail(() => HttpError.notFound({ message: 'Карточка с указанным _id не найдена.' }));
+
+    if (card.owner.toString() !== (req as RequestWithUser).user._id) {
+      next(HttpError.forbidden({ message: 'Недостаточно прав доступа для этой операции' }));
+    } else {
+      const cardInfo = await Card.findByIdAndDelete(req.params.cardId);
+      res.send(cardInfo);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === 'CastError') {
+      next(HttpError.badRequest({ message: 'Передан некорректный _id карточки.' }));
     } else {
       next(err);
     }
   }
 };
 
-export const deleteCard = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const card = await Card.findById(req.params.cardId);
+const likeCard = async (req: Request, res: Response, next: NextFunction) => {
+  const owner = (req as RequestWithUser).user._id;
 
-    if (!card) {
-      next(new NotFoundError('Карточка не найдена'));
-      return;
-    }
-
-    if (card.owner.toString() !== req.user?._id) {
-      next(new ForbiddenError('Нельзя удалять чужую карточку'));
-      return;
-    }
-
-    await card.deleteOne();
-    res.status(200).json({ message: 'Карточка удалена' });
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      next(new BadRequestError('Некорректный ID карточки'));
-    } else {
-      next(err);
-    }
-  }
-};
-
-export const likeCard = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
   try {
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
-      { $addToSet: { likes: req.user?._id } },
+      { $addToSet: { likes: owner } },
       { new: true },
-    );
+    ).orFail(() => HttpError.notFound({ message: 'Передан несуществующий _id карточки.' }));
 
-    if (!card) {
-      next(new NotFoundError('Карточка не найдена'));
-      return;
-    }
-
-    res.status(200).json(card);
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      next(new BadRequestError('Некорректный ID карточки'));
+    res.status(StatusCodes.OK).send(card);
+  } catch (err) {
+    if (err instanceof Error && err.name === 'CastError') {
+      next(HttpError.badRequest({ message: 'Переданы некорректные данные для постановки лайка или некорректный _id карточки.' }));
     } else {
       next(err);
     }
   }
 };
 
-export const dislikeCard = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
+const dislikeCard = async (req: Request, res: Response, next: NextFunction) => {
+  const owner = (req as RequestWithUser).user._id;
+
   try {
     const card = await Card.findByIdAndUpdate(
       req.params.cardId,
-      { $pull: { likes: req.user?._id } },
+      { $pull: { likes: owner } },
       { new: true },
-    );
+    ).orFail(() => HttpError.notFound({ message: 'Передан несуществующий _id карточки.' }));
 
-    if (!card) {
-      next(new NotFoundError('Карточка не найдена'));
-      return;
-    }
-
-    res.status(200).json(card);
-  } catch (err: any) {
-    if (err.name === 'CastError') {
-      next(new BadRequestError('Некорректный ID карточки'));
+    res.status(StatusCodes.OK).send(card);
+  } catch (err) {
+    if (err instanceof Error && err.name === 'CastError') {
+      next(HttpError.badRequest({ message: 'Переданы некорректные данные для снятия лайка или некорректный _id карточки.' }));
     } else {
       next(err);
     }
   }
+};
+
+export {
+  getCards,
+  createCard,
+  deleteCard,
+  likeCard,
+  dislikeCard,
 };

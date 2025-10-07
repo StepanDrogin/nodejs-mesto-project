@@ -1,6 +1,12 @@
-import mongoose, { Document, Schema, Types } from 'mongoose';
+import {
+  Document,
+  Schema,
+  Types,
+  model,
+} from 'mongoose';
+import validator from 'validator';
 
-export interface ICard extends Document {
+interface ICard extends Document {
   name: string;
   link: string;
   owner: Types.ObjectId;
@@ -18,16 +24,20 @@ const cardSchema = new Schema<ICard>({
   link: {
     type: String,
     required: true,
+    validate: {
+      validator: (url: string) => validator.isURL(url),
+      message: 'Некорректный URL аватара',
+    },
   },
   owner: {
     type: Schema.Types.ObjectId,
-    ref: 'user',
     required: true,
+    ref: 'user',
   },
   likes: {
     type: [Schema.Types.ObjectId],
-    ref: 'user',
     default: [],
+    ref: 'user',
   },
   createdAt: {
     type: Date,
@@ -35,4 +45,4 @@ const cardSchema = new Schema<ICard>({
   },
 });
 
-export default mongoose.model<ICard>('card', cardSchema);
+export default model<ICard>('card', cardSchema);

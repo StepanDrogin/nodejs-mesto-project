@@ -1,12 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable no-unused-vars */
 import { ObjectId } from 'mongoose';
-// eslint-disable-next-line no-unused-vars
-import { Request } from 'express';
 
-declare module 'express-serve-static-core' {
-  // eslint-disable-next-line no-unused-vars, no-shadow
-  interface Request {
-    user?: {
-      _id: string | ObjectId;
-    };
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        _id: string | ObjectId
+      }
+    }
   }
 }
+
+export {};
